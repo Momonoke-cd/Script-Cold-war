@@ -1,6 +1,13 @@
 --[[
-    Cold War ESP v3 — LinoriaLib UI Edition (With Key System)
-    Highlight คลุมทั้งตัวละคร ทะลุกำแพงได้ + Box ESP + Aimbot + Key System
+    Cold War ESP v3 — LinoriaLib UI Edition (Pure English)
+    Features:
+    - Full-Body Highlight (Chams, Wallhack)
+    - 2D Bounding Box ESP (R6 / R15 Full Body)
+    - Player Info (Name, Distance, Health Percentage)
+    - Advanced Aimbot & Smooth Aim
+    - Triggerbot with Dual-Detection (Mouse Target + Viewport Raycast)
+    - Misc Features (WalkSpeed Modifier, Noclip, Infinite Jump)
+    - HWID-Locked Key System (Anti-Share Protection)
 --]]
 
 local Players = game:GetService("Players")
@@ -8,46 +15,102 @@ local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 local Camera = workspace.CurrentCamera
 local UserInputService = game:GetService("UserInputService")
-local TweenService = game:GetService("TweenService")
+local VirtualInputManager = game:GetService("VirtualInputManager")
 local LocalPlayer = Players.LocalPlayer
 
 -- =========================================================================
---  🔑 KEY SYSTEM CONFIGURATION
+--  🔑 KEY SYSTEM CONFIGURATION (Hardware ID Protection)
 -- =========================================================================
+local function GetDeviceHWID()
+    local hwid = nil
+    pcall(function()
+        if gethwid then
+            hwid = gethwid()
+        elseif get_hwid then
+            hwid = get_hwid()
+        end
+    end)
+    if not hwid or hwid == "" then
+        pcall(function()
+            hwid = game:GetService("RbxAnalyticsService"):GetClientId()
+        end)
+    end
+    return hwid or "UNKNOWN_DEVICE"
+end
+
+local CurrentHWID = GetDeviceHWID()
+
 local KeyConfig = {
-    -- ลิงก์สำหรับรับ Key (แก้ไขเป็นลิงก์ Linkvertise, Discord, หรือเว็บของคุณได้)
     GetKeyURL = "https://discord.gg/yourserver", 
     KeySaveFile = "ColdWar_SavedKey.txt",
+    HWIDSaveFile = "ColdWar_BoundHWID.txt",
     
-    -- รายการคีย์ที่ถูกต้อง (เพิ่ม/แก้ไขได้ที่นี่)
+    -- Valid license keys list
     ValidKeys = {
-        ["COLDWAR-OWNER-AONMO-2026-VIP"] = true,  -- ⭐ คีย์ส่วนตัวของคุณโดยเฉพาะ (VIP Owner)
-        ["COLDWAR-MASTER-7789-KEY"]    = true,  -- สำรอง
+        ["COLDWAR-OWNER-AONMO-2026-VIP"] = {
+            Role = "VIP Owner",
+            LockedHWID = nil, -- Locks to first machine used, or insert specific HWID here
+        },
+        ["COLDWAR-MASTER-7789-KEY"] = {
+            Role = "Master",
+            LockedHWID = nil,
+        },
     }
 }
 
--- ฟังก์ชันตรวจสอบว่า Key ถูกต้องหรือไม่
+-- Verify License Key and Hardware ID Binding
 local function VerifyKey(inputKey)
-    if not inputKey then return false end
-    -- ตัดช่องว่างหัวท้าย
+    if not inputKey or inputKey == "" then 
+        return false, "Please enter your license key." 
+    end
+
     local trimmed = string.gsub(inputKey, "^%s*(.-)%s*$", "%1")
-    return KeyConfig.ValidKeys[trimmed] == true
+    local keyData = KeyConfig.ValidKeys[trimmed]
+    
+    if not keyData then
+        return false, "✕ Invalid Key! Please check and try again."
+    end
+    
+    local boundHWID = keyData.LockedHWID
+    
+    if not boundHWID and isfile and isfile(KeyConfig.HWIDSaveFile) then
+        pcall(function()
+            boundHWID = readfile(KeyConfig.HWIDSaveFile)
+        end)
+    end
+    
+    if boundHWID and boundHWID ~= "" then
+        if boundHWID ~= CurrentHWID then
+            return false, "✕ Key locked to another device (HWID Mismatch)!"
+        end
+    else
+        pcall(function()
+            if writefile then
+                writefile(KeyConfig.HWIDSaveFile, CurrentHWID)
+            end
+        end)
+    end
+    
+    return true, "✓ Key verified successfully!"
 end
 
--- ตรวจสอบ Key ที่เซฟไว้ในเครื่อง (ถ้ามีและถูกต้อง จะข้ามหน้า Key ไปเลย)
+-- Check locally cached key
 local savedKeyValid = false
 pcall(function()
     if isfile and isfile(KeyConfig.KeySaveFile) then
         local saved = readfile(KeyConfig.KeySaveFile)
-        if VerifyKey(saved) then
+        local valid = VerifyKey(saved)
+        if valid then
             savedKeyValid = true
         end
     end
 end)
 
--- ฟังก์ชันรันโปรแกรมหลักหลังจากผ่าน Key แล้ว
+-- =========================================================================
+--  MAIN SCRIPT EXECUTION
+-- =========================================================================
 local function StartMainScript()
-    -- ====== โหลด LinoriaLib (ใช้ repo ที่ถูกต้อง: violin-suzutsuki) ======
+    -- Load LinoriaLib (Primary: violin-suzutsuki)
     local repo = 'https://raw.githubusercontent.com/violin-suzutsuki/LinoriaLib/main/'
 
     local success, Library = pcall(function()
@@ -55,7 +118,7 @@ local function StartMainScript()
     end)
 
     if not success or not Library then
-        warn("[Cold War ESP] กำลังลอง repo สำรอง...")
+        warn("[Cold War ESP] Primary repository failed. Attempting fallback...")
         local fallbackRepo = 'https://raw.githubusercontent.com/mstudio45/LinoriaLib/main/'
         local fbSuccess, fbLib = pcall(function()
             return loadstring(game:HttpGet(fallbackRepo .. 'Library.lua'))()
@@ -64,7 +127,7 @@ local function StartMainScript()
             Library = fbLib
             repo = fallbackRepo
         else
-            error("[Cold War ESP Error] ล้มเหลวในการดาวน์โหลด LinoriaLib! ตรวจสอบการเชื่อมต่ออินเทอร์เน็ต")
+            error("[Cold War ESP] Failed to download LinoriaLib! Please check your internet connection.")
         end
     end
 
@@ -76,7 +139,7 @@ local function StartMainScript()
         SaveManager = loadstring(game:HttpGet(repo .. 'addons/SaveManager.lua'))()
     end)
 
-    -- ====== ตั้งค่าเริ่มต้น (ปิดทั้งหมดให้ผู้ใช้เลือกเปิดเอง) ======
+    -- Default Settings (All toggles disabled initially)
     local Settings = {
         ESP = {
             Enabled = false,
@@ -110,7 +173,6 @@ local function StartMainScript()
         },
     }
 
-    -- ฟังก์ชันหา Team
     local function GetPlayerTeam(plr)
         if plr.Team then
             return plr.Team.Name
@@ -128,7 +190,7 @@ local function StartMainScript()
         return nil
     end
 
-    -- ====== สร้าง LinoriaLib Window ======
+    -- Create Window
     local Window = Library:CreateWindow({
         Title = 'Cold War ESP v3 [BZMEMBER]',
         Center = true,
@@ -143,27 +205,27 @@ local function StartMainScript()
     }
 
     -- ==========================================
-    --  แท็บ ESP
+    --  TAB: ESP
     -- ==========================================
     local ESPLeft = Tabs.ESP:AddLeftGroupbox('ESP Settings')
     local ESPRight = Tabs.ESP:AddRightGroupbox('Display Options')
 
     ESPLeft:AddToggle('ESPEnabled', {
-        Text = 'ESP Enabled',
+        Text = 'ESP Master Toggle',
         Default = false,
-        Tooltip = 'เปิด/ปิด ESP ทั้งหมด',
+        Tooltip = 'Master switch for all ESP features',
     })
 
     ESPLeft:AddToggle('BoxEnabled', {
-        Text = 'Box ESP',
+        Text = '2D Box ESP',
         Default = false,
-        Tooltip = 'แสดงกรอบสี่เหลี่ยมรอบตัวละคร',
+        Tooltip = 'Draw full-body 2D bounding boxes around players',
     })
 
     ESPLeft:AddToggle('HighlightEnabled', {
-        Text = 'Highlight (Full Body)',
+        Text = 'Chams / Highlight',
         Default = false,
-        Tooltip = 'Highlight คลุมทั้งตัวละคร ทะลุกำแพง',
+        Tooltip = 'Full-body 3D character highlight visible through walls',
     })
 
     ESPLeft:AddDivider()
@@ -172,12 +234,12 @@ local function StartMainScript()
         Values = { 'All', 'Enemy', 'Team' },
         Default = 1,
         Multi = false,
-        Text = 'ESP Target',
-        Tooltip = 'เลือกว่าจะแสดง ESP ของฝ่ายไหน',
+        Text = 'Target Filter',
+        Tooltip = 'Filter visual targets by team',
     })
 
     ESPLeft:AddSlider('MaxDistance', {
-        Text = 'Max Distance',
+        Text = 'Render Distance',
         Default = 350,
         Min = 50,
         Max = 1000,
@@ -188,48 +250,48 @@ local function StartMainScript()
 
     ESPLeft:AddLabel('Team Color'):AddColorPicker('TeamColorSelf', {
         Default = Color3.fromRGB(0, 255, 100),
-        Title = 'สีทีมตัวเอง',
+        Title = 'Team Color',
     })
 
     ESPLeft:AddLabel('Enemy Color'):AddColorPicker('TeamColorEnemy', {
         Default = Color3.fromRGB(255, 50, 50),
-        Title = 'สีฝ่ายตรงข้าม',
+        Title = 'Enemy Color',
     })
 
-    ESPRight:AddToggle('ShowName', { Text = 'Show Name', Default = false })
-    ESPRight:AddToggle('ShowDistance', { Text = 'Show Distance', Default = false })
-    ESPRight:AddToggle('ShowHP', { Text = 'Show HP', Default = false })
+    ESPRight:AddToggle('ShowName', { Text = 'Display Name', Default = false })
+    ESPRight:AddToggle('ShowDistance', { Text = 'Display Distance', Default = false })
+    ESPRight:AddToggle('ShowHP', { Text = 'Display Health', Default = false })
     ESPRight:AddDivider()
 
-    ESPRight:AddLabel('Name Color'):AddColorPicker('NameColor', {
+    ESPRight:AddLabel('Name Text Color'):AddColorPicker('NameColor', {
         Default = Color3.fromRGB(255, 255, 255),
-        Title = 'สีชื่อ',
+        Title = 'Name Color',
     })
 
-    ESPRight:AddLabel('Distance Color'):AddColorPicker('DistanceColor', {
+    ESPRight:AddLabel('Distance Text Color'):AddColorPicker('DistanceColor', {
         Default = Color3.fromRGB(200, 200, 200),
-        Title = 'สีระยะทาง',
+        Title = 'Distance Color',
     })
 
     -- ==========================================
-    --  แท็บ Aimbot
+    --  TAB: AIMBOT
     -- ==========================================
     local AimLeft = Tabs.Aimbot:AddLeftGroupbox('Aimbot Settings')
     local AimRight = Tabs.Aimbot:AddRightGroupbox('Aim Options')
 
-    AimLeft:AddToggle('AimbotEnabled', { Text = 'Aimbot Enabled', Default = false })
-    AimLeft:AddToggle('SilentAim', { Text = 'Smooth Aim', Default = false, Tooltip = 'Smooth aim แทนการ snap ทันที' })
+    AimLeft:AddToggle('AimbotEnabled', { Text = 'Enable Aimbot', Default = false })
+    AimLeft:AddToggle('SilentAim', { Text = 'Smooth Aim', Default = false, Tooltip = 'Smoothly interpolate camera towards target' })
     AimLeft:AddDivider()
 
     AimLeft:AddDropdown('AimPart', {
         Values = { 'Head', 'Torso' },
         Default = 1,
         Multi = false,
-        Text = 'Aim Part',
-        Tooltip = 'เลือกตำแหน่งล็อคเป้า',
+        Text = 'Aim Target Bone',
+        Tooltip = 'Select body bone to target',
     })
 
-    AimLeft:AddLabel('Aim Keybind'):AddKeyPicker('AimKeybind', {
+    AimLeft:AddLabel('Aim Lock Key'):AddKeyPicker('AimKeybind', {
         Default = 'Q',
         SyncToggleState = false,
         Mode = 'Hold',
@@ -237,8 +299,8 @@ local function StartMainScript()
         NoUI = false,
     })
 
-    AimRight:AddSlider('AimFOV', { Text = 'FOV (px)', Default = 120, Min = 30, Max = 500, Rounding = 0 })
-    AimRight:AddSlider('AimSmoothness', { Text = 'Smoothness', Default = 0.15, Min = 0.01, Max = 1, Rounding = 2, Compact = false })
+    AimRight:AddSlider('AimFOV', { Text = 'FOV Radius (px)', Default = 120, Min = 30, Max = 500, Rounding = 0 })
+    AimRight:AddSlider('AimSmoothness', { Text = 'Smoothness Factor', Default = 0.15, Min = 0.01, Max = 1, Rounding = 2, Compact = false })
 
     AimRight:AddDivider()
     AimRight:AddLabel('Triggerbot')
@@ -246,17 +308,17 @@ local function StartMainScript()
     AimRight:AddToggle('TriggerbotEnabled', {
         Text = 'Enable Triggerbot',
         Default = false,
-        Tooltip = 'ยิงอัตโนมัติทันทีเมื่อเป้าเล็งชี้โดนศัตรู',
+        Tooltip = 'Automatically fire when crosshair hovers over an enemy',
     })
 
     AimRight:AddToggle('TriggerbotTeamCheck', {
-        Text = 'Team Check',
+        Text = 'Triggerbot Team Check',
         Default = true,
-        Tooltip = 'ไม่ยิงเพื่อนร่วมทีม',
+        Tooltip = 'Do not fire at teammates',
     })
 
     AimRight:AddSlider('TriggerbotDelay', {
-        Text = 'Shoot Delay (s)',
+        Text = 'Shot Delay (s)',
         Default = 0.02,
         Min = 0,
         Max = 0.5,
@@ -264,7 +326,7 @@ local function StartMainScript()
         Compact = false,
     })
 
-    AimRight:AddLabel('Trigger Key'):AddKeyPicker('TriggerKeybind', {
+    AimRight:AddLabel('Triggerbot Key'):AddKeyPicker('TriggerKeybind', {
         Default = 'MB2',
         SyncToggleState = false,
         Mode = 'Always',
@@ -273,7 +335,7 @@ local function StartMainScript()
     })
 
     -- ==========================================
-    --  แท็บ Misc (Miscellaneous)
+    --  TAB: MISC
     -- ==========================================
     local MiscMovement = Tabs.Misc:AddLeftGroupbox('Movement')
     local MiscCharacter = Tabs.Misc:AddRightGroupbox('Character Mods')
@@ -281,11 +343,11 @@ local function StartMainScript()
     MiscMovement:AddToggle('WalkSpeedEnabled', {
         Text = 'Enable WalkSpeed',
         Default = false,
-        Tooltip = 'เปิด/ปิด ปรับความเร็วการเดิน',
+        Tooltip = 'Override character walking speed',
     })
 
     MiscMovement:AddSlider('WalkSpeedSlider', {
-        Text = 'WalkSpeed',
+        Text = 'WalkSpeed Value',
         Default = 16,
         Min = 16,
         Max = 250,
@@ -298,17 +360,17 @@ local function StartMainScript()
     MiscMovement:AddToggle('InfiniteJump', {
         Text = 'Infinite Jump',
         Default = false,
-        Tooltip = 'กระโดดกลางอากาศได้ไม่จำกัด (กด Spacebar ได้ตลอดเวลา)',
+        Tooltip = 'Allows continuous jumping while airborne',
     })
 
     MiscCharacter:AddToggle('Noclip', {
         Text = 'Noclip',
         Default = false,
-        Tooltip = 'เดินทะลุกำแพงและสิ่งกีดขวางทั้งหมด',
+        Tooltip = 'Walk through all solid walls and objects',
     })
 
     -- ==========================================
-    --  แท็บ UI Settings
+    --  TAB: UI SETTINGS
     -- ==========================================
     local MenuGroup = Tabs['UI Settings']:AddLeftGroupbox('Menu')
     MenuGroup:AddButton('Unload Script', function() Library:Unload() end)
@@ -352,7 +414,6 @@ local function StartMainScript()
         Settings.Aimbot.TriggerbotDelay = Options.TriggerbotDelay.Value
     end)
 
-    -- Event Listeners: Misc
     Toggles.WalkSpeedEnabled:OnChanged(function()
         Settings.Misc.WalkSpeedEnabled = Toggles.WalkSpeedEnabled.Value
         if not Settings.Misc.WalkSpeedEnabled and LocalPlayer.Character then
@@ -377,7 +438,7 @@ local function StartMainScript()
         Settings.Misc.NoclipEnabled = Toggles.Noclip.Value
     end)
 
-    -- Theme & Save Manager
+    -- Theme & Save Manager Configuration
     if ThemeManager then
         pcall(function()
             ThemeManager:SetLibrary(Library)
@@ -483,7 +544,7 @@ local function StartMainScript()
                 hl = HighlightObjects[plr]
             end
 
-            -- คำนวณขอบเขตตัวละครทั้งตัว (หัวถึงเท้า) รองรับทั้ง R6, R15 และชุดเกราะ/หมวก
+            -- Full-body bounds calculation (Head to Feet)
             local head = char:FindFirstChild("Head")
             local topPos = head and (head.Position + Vector3.new(0, 1.3, 0)) or (root.Position + Vector3.new(0, 3.2, 0))
             
@@ -524,7 +585,7 @@ local function StartMainScript()
                 continue
             end
 
-            -- Highlight 3D (คลุมทั้งโมเดล 3D ทะลุกำแพง)
+            -- 3D Chams Highlight
             if hl then
                 if Settings.ESP.Enabled and Settings.ESP.HighlightEnabled and distance <= Settings.ESP.MaxDistance then
                     hl.FillColor = teamColor
@@ -536,8 +597,7 @@ local function StartMainScript()
                 end
             end
 
-            -- 2D Drawing Box, Name, Distance, HP
-            -- ตรวจสอบว่าอยู่หน้ากล้องและระยะไม่เกินกำหนด
+            -- 2D Screen Visuals
             if topScreen.Z <= 0 or (not topOn and not bottomOn) or distance > Settings.ESP.MaxDistance then
                 obj.Box.Visible = false
                 obj.Name.Visible = false
@@ -551,27 +611,27 @@ local function StartMainScript()
             local centerX = (topScreen.X + bottomScreen.X) / 2
             local topY = math.min(topScreen.Y, bottomScreen.Y)
 
-            -- Box (กรอบคลุมทั้งตัวละครตั้งแต่หมวกจนถึงเท้า)
+            -- 2D Box
             obj.Box.Size = Vector2.new(width, height)
             obj.Box.Position = Vector2.new(centerX - width / 2, topY)
             obj.Box.Color = teamColor
             obj.Box.Visible = Settings.ESP.Enabled and Settings.ESP.BoxEnabled
 
-            -- ชื่อ (อยู่เหนือหมวก)
+            -- Name
             obj.Name.Text = plr.DisplayName or plr.Name
             obj.Name.Color = Settings.ESP.NameColor
             obj.Name.Size = 14
             obj.Name.Position = Vector2.new(centerX, topY - 16)
             obj.Name.Visible = Settings.ESP.Enabled and Settings.ESP.ShowName
 
-            -- ระยะ (อยู่ใต้เท้า)
+            -- Distance
             obj.Distance.Text = tostring(math.floor(distance)) .. "m"
             obj.Distance.Color = Settings.ESP.DistanceColor
             obj.Distance.Size = 12
             obj.Distance.Position = Vector2.new(centerX, topY + height + 3)
             obj.Distance.Visible = Settings.ESP.Enabled and Settings.ESP.ShowDistance
 
-            -- HP (อยู่ใต้ระยะ)
+            -- Health Percentage
             local hpPercent = humanoid.Health / humanoid.MaxHealth * 100
             obj.HP.Text = string.format("%.0f%%", hpPercent)
             obj.HP.Color = hpPercent > 50 and Color3.fromRGB(0, 255, 0) or (hpPercent > 25 and Color3.fromRGB(255, 255, 0) or Color3.fromRGB(255, 0, 0))
@@ -581,7 +641,7 @@ local function StartMainScript()
         end
     end
 
-    -- ====== Aimbot ======
+    -- ====== Aimbot Targeting ======
     local function GetClosestTarget()
         local closestDist = math.huge
         local closestTarget = nil
@@ -628,7 +688,6 @@ local function StartMainScript()
     end
 
     -- ====== Triggerbot Core ======
-    local VirtualInputManager = game:GetService("VirtualInputManager")
     local lastTriggerShot = 0
     local isShooting = false
 
@@ -653,12 +712,12 @@ local function StartMainScript()
     end
 
     local function CheckTriggerTarget()
-        -- 1. ตรวจสอบผ่าน Mouse.Target
+        -- 1. Check via Mouse.Target
         local target = Mouse.Target
         local model = target and target:FindFirstAncestorOfClass("Model")
         local plr = model and Players:GetPlayerFromCharacter(model)
 
-        -- 2. Raycast จากกึ่งกลางหน้าจอ (สำหรับ First-Person / Shift-Lock)
+        -- 2. Viewport Raycast fallback (for First-Person / Shift-Lock)
         if not plr then
             local ray = Camera:ViewportPointToRay(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
             local raycastParams = RaycastParams.new()
@@ -743,7 +802,7 @@ local function StartMainScript()
         end
     end)
 
-    -- Loop
+    -- Render Loop
     RunService.RenderStepped:Connect(function()
         if Settings.ESP.Enabled then
             UpdateESP()
@@ -761,10 +820,10 @@ local function StartMainScript()
             if target then AimAt(target) end
         end
 
-        -- Triggerbot (ยิงอัตโนมัติเมื่อเป้าชี้โดนศัตรู)
+        -- Triggerbot
         ProcessTriggerbot()
 
-        -- WalkSpeed (อัปเดตความเร็วเดิน)
+        -- WalkSpeed Modifier
         if Settings.Misc.WalkSpeedEnabled and LocalPlayer.Character then
             local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
             if hum and hum.WalkSpeed ~= Settings.Misc.WalkSpeed then
@@ -773,7 +832,7 @@ local function StartMainScript()
         end
     end)
 
-    -- Noclip (เดินทะลุกำแพง)
+    -- Noclip Connection
     local noclipConnection
     noclipConnection = RunService.Stepped:Connect(function()
         if Settings.Misc.NoclipEnabled and LocalPlayer.Character then
@@ -785,7 +844,7 @@ local function StartMainScript()
         end
     end)
 
-    -- Infinite Jump (กระโดดไม่จำกัด)
+    -- Infinite Jump Connection
     local jumpConnection
     jumpConnection = UserInputService.JumpRequest:Connect(function()
         if Settings.Misc.InfiniteJumpEnabled and LocalPlayer.Character then
@@ -796,7 +855,7 @@ local function StartMainScript()
         end
     end)
 
-    -- รีเซ็ตความเร็วเมื่อตัวละครเกิดใหม่
+    -- Respawn Handler
     LocalPlayer.CharacterAdded:Connect(function(char)
         task.wait(0.5)
         if Settings.Misc.WalkSpeedEnabled then
@@ -805,7 +864,7 @@ local function StartMainScript()
         end
     end)
 
-    -- Cleanup เมื่อ Unload
+    -- Script Cleanup
     Library:OnUnload(function()
         if noclipConnection then noclipConnection:Disconnect() end
         if jumpConnection then jumpConnection:Disconnect() end
@@ -822,17 +881,16 @@ local function StartMainScript()
         Library.Unloaded = true
     end)
 
-    print("[Cold War ESP v3] ทำงานเรียบร้อย! กด End เพื่อเปิด/ปิดเมนู")
+    print("[Cold War ESP v3] Loaded successfully! Press End to toggle menu.")
 end
 
 -- =========================================================================
---  🎨 KEY SYSTEM GUI (หน้าต่างกรอก Key)
+--  🎨 KEY SYSTEM GUI (Pure English)
 -- =========================================================================
 if savedKeyValid then
-    print("[Cold War ESP] ยืนยัน Key จากแคชเรียบร้อย! ข้ามหน้า Key System...")
+    print("[Cold War ESP] Verified cached key! Skipping key prompt...")
     StartMainScript()
 else
-    -- ป้องกัน UI ซ้ำ
     if LocalPlayer.PlayerGui:FindFirstChild("ColdWarKeySystemUI") then
         LocalPlayer.PlayerGui.ColdWarKeySystemUI:Destroy()
     end
@@ -842,7 +900,6 @@ else
     ScreenGui.ResetOnSpawn = false
     ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
-    -- ป้องกันกรณี Parent เข้า PlayerGui ล้มเหลว ให้ใช้ CoreGui ถ้า Executor รองรับ
     local pcallParent = pcall(function()
         ScreenGui.Parent = game:GetService("CoreGui")
     end)
@@ -852,8 +909,8 @@ else
 
     local MainCard = Instance.new("Frame")
     MainCard.Name = "MainCard"
-    MainCard.Size = UDim2.new(0, 420, 0, 310)
-    MainCard.Position = UDim2.new(0.5, -210, 0.5, -155)
+    MainCard.Size = UDim2.new(0, 420, 0, 360)
+    MainCard.Position = UDim2.new(0.5, -210, 0.5, -180)
     MainCard.BackgroundColor3 = Color3.fromRGB(18, 18, 24)
     MainCard.BorderSizePixel = 0
     MainCard.ClipsDescendants = true
@@ -868,7 +925,7 @@ else
     UIStroke.Thickness = 1.5
     UIStroke.Parent = MainCard
 
-    -- แถบหัวข้อ Title Bar
+    -- Title Bar
     local TitleBar = Instance.new("Frame")
     TitleBar.Size = UDim2.new(1, 0, 0, 48)
     TitleBar.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
@@ -894,14 +951,14 @@ else
     SubText.Size = UDim2.new(1, -40, 0, 25)
     SubText.Position = UDim2.new(0, 20, 0, 58)
     SubText.BackgroundTransparency = 1
-    SubText.Text = "กรุณากรอก Key ของคุณเพื่อเริ่มใช้งานสคริปต์"
+    SubText.Text = "Please enter your license key to access the script."
     SubText.TextColor3 = Color3.fromRGB(180, 180, 190)
     SubText.Font = Enum.Font.Gotham
     SubText.TextSize = 13
     SubText.TextXAlignment = Enum.TextXAlignment.Left
     SubText.Parent = MainCard
 
-    -- กล่องใส่ Key
+    -- Key Input Container
     local KeyBoxContainer = Instance.new("Frame")
     KeyBoxContainer.Size = UDim2.new(1, -40, 0, 42)
     KeyBoxContainer.Position = UDim2.new(0, 20, 0, 90)
@@ -922,7 +979,7 @@ else
     KeyInput.Size = UDim2.new(1, -20, 1, 0)
     KeyInput.Position = UDim2.new(0, 10, 0, 0)
     KeyInput.BackgroundTransparency = 1
-    KeyInput.PlaceholderText = "วาง Key ของคุณที่นี่..."
+    KeyInput.PlaceholderText = "Paste your license key here..."
     KeyInput.PlaceholderColor3 = Color3.fromRGB(120, 120, 140)
     KeyInput.Text = ""
     KeyInput.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -931,7 +988,7 @@ else
     KeyInput.ClearTextOnFocus = false
     KeyInput.Parent = KeyBoxContainer
 
-    -- ข้อความสถานะ (Status)
+    -- Status Label
     local StatusLabel = Instance.new("TextLabel")
     StatusLabel.Size = UDim2.new(1, -40, 0, 20)
     StatusLabel.Position = UDim2.new(0, 20, 0, 138)
@@ -943,12 +1000,12 @@ else
     StatusLabel.TextXAlignment = Enum.TextXAlignment.Left
     StatusLabel.Parent = MainCard
 
-    -- ปุ่ม Submit (ยืนยัน Key)
+    -- Submit Button
     local SubmitBtn = Instance.new("TextButton")
     SubmitBtn.Size = UDim2.new(1, -40, 0, 40)
     SubmitBtn.Position = UDim2.new(0, 20, 0, 168)
     SubmitBtn.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
-    SubmitBtn.Text = "SUBMIT KEY (ยืนยัน)"
+    SubmitBtn.Text = "SUBMIT KEY"
     SubmitBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
     SubmitBtn.Font = Enum.Font.GothamBold
     SubmitBtn.TextSize = 14
@@ -958,12 +1015,12 @@ else
     SubmitCorner.CornerRadius = UDim.new(0, 8)
     SubmitCorner.Parent = SubmitBtn
 
-    -- ปุ่มแถวล่าง: Get Key & Paste
+    -- Bottom Buttons: Get Key & Paste
     local GetKeyBtn = Instance.new("TextButton")
     GetKeyBtn.Size = UDim2.new(0.48, -25, 0, 36)
     GetKeyBtn.Position = UDim2.new(0, 20, 0, 220)
     GetKeyBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 50)
-    GetKeyBtn.Text = "GET KEY (รับคีย์)"
+    GetKeyBtn.Text = "GET KEY"
     GetKeyBtn.TextColor3 = Color3.fromRGB(0, 255, 140)
     GetKeyBtn.Font = Enum.Font.GothamBold
     GetKeyBtn.TextSize = 13
@@ -977,7 +1034,7 @@ else
     PasteBtn.Size = UDim2.new(0.48, -25, 0, 36)
     PasteBtn.Position = UDim2.new(0.52, 5, 0, 220)
     PasteBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 50)
-    PasteBtn.Text = "PASTE KEY (วาง)"
+    PasteBtn.Text = "PASTE KEY"
     PasteBtn.TextColor3 = Color3.fromRGB(255, 215, 0)
     PasteBtn.Font = Enum.Font.GothamBold
     PasteBtn.TextSize = 13
@@ -987,7 +1044,21 @@ else
     PasteCorner.CornerRadius = UDim.new(0, 8)
     PasteCorner.Parent = PasteBtn
 
-    -- ฟังก์ชันคัดลอกลง Clipboard
+    -- Copy HWID Button
+    local CopyHwidBtn = Instance.new("TextButton")
+    CopyHwidBtn.Size = UDim2.new(1, -40, 0, 32)
+    CopyHwidBtn.Position = UDim2.new(0, 20, 0, 268)
+    CopyHwidBtn.BackgroundColor3 = Color3.fromRGB(26, 26, 36)
+    CopyHwidBtn.Text = "COPY HWID"
+    CopyHwidBtn.TextColor3 = Color3.fromRGB(160, 160, 180)
+    CopyHwidBtn.Font = Enum.Font.Gotham
+    CopyHwidBtn.TextSize = 12
+    CopyHwidBtn.Parent = MainCard
+
+    local CopyHwidCorner = Instance.new("UICorner")
+    CopyHwidCorner.CornerRadius = UDim.new(0, 8)
+    CopyHwidCorner.Parent = CopyHwidBtn
+
     local function CopyToClipboard(text)
         if setclipboard then
             setclipboard(text)
@@ -999,37 +1070,49 @@ else
         return false
     end
 
-    -- Event: กดปุ่ม Get Key
+    -- Copy HWID Event
+    CopyHwidBtn.MouseButton1Click:Connect(function()
+        local copied = CopyToClipboard(CurrentHWID)
+        if copied then
+            StatusLabel.TextColor3 = Color3.fromRGB(0, 200, 255)
+            StatusLabel.Text = "✓ Hardware ID (HWID) copied to clipboard!"
+        else
+            StatusLabel.TextColor3 = Color3.fromRGB(255, 200, 0)
+            StatusLabel.Text = "HWID: " .. string.sub(CurrentHWID, 1, 18) .. "..."
+        end
+    end)
+
+    -- Get Key Event
     GetKeyBtn.MouseButton1Click:Connect(function()
         local copied = CopyToClipboard(KeyConfig.GetKeyURL)
         if copied then
             StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 140)
-            StatusLabel.Text = "✓ คัดลอกลิงก์รับ Key ลง Clipboard เรียบร้อยแล้ว!"
+            StatusLabel.Text = "✓ Key link copied to clipboard!"
         else
             StatusLabel.TextColor3 = Color3.fromRGB(255, 200, 0)
-            StatusLabel.Text = "ลิงก์: " .. KeyConfig.GetKeyURL
+            StatusLabel.Text = "Link: " .. KeyConfig.GetKeyURL
         end
     end)
 
-    -- Event: กดปุ่ม Paste Key
+    -- Paste Key Event
     PasteBtn.MouseButton1Click:Connect(function()
         pcall(function()
             if getclipboard then
                 KeyInput.Text = getclipboard()
                 StatusLabel.TextColor3 = Color3.fromRGB(200, 200, 220)
-                StatusLabel.Text = "วาง Key จาก Clipboard แล้ว"
+                StatusLabel.Text = "✓ Pasted key from clipboard."
             end
         end)
     end)
 
-    -- Event: กดยืนยัน Key
+    -- Submit Key Event
     SubmitBtn.MouseButton1Click:Connect(function()
         local input = KeyInput.Text
-        if VerifyKey(input) then
+        local isValid, msg = VerifyKey(input)
+        if isValid then
             StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 120)
-            StatusLabel.Text = "✓ Key ถูกต้อง! กำลังโหลดสคริปต์..."
+            StatusLabel.Text = "✓ " .. (msg or "Key verified! Loading script...")
             
-            -- เซฟ Key เก็บไว้ในเครื่อง จะได้ไม่ต้องกรอกซ้ำ
             pcall(function()
                 if writefile then
                     writefile(KeyConfig.KeySaveFile, input)
@@ -1041,7 +1124,7 @@ else
             StartMainScript()
         else
             StatusLabel.TextColor3 = Color3.fromRGB(255, 70, 70)
-            StatusLabel.Text = "✕ Key ไม่ถูกต้อง! กรุณาตรวจสอบอีกครั้ง"
+            StatusLabel.Text = msg or "✕ Invalid key! Please try again."
             BoxStroke.Color = Color3.fromRGB(255, 70, 70)
             task.delay(1.5, function()
                 BoxStroke.Color = Color3.fromRGB(60, 60, 80)
@@ -1049,7 +1132,6 @@ else
         end
     end)
 
-    -- รองรับการกด Enter ในช่อง KeyInput
     KeyInput.FocusLost:Connect(function(enterPressed)
         if enterPressed then
             SubmitBtn.MouseButton1Click:Fire()

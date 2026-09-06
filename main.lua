@@ -40,58 +40,95 @@ end
 
 local CurrentHWID = GetDeviceHWID()
 
+local HttpService = game:GetService("HttpService")
+
 local KeyConfig = {
-    GetKeyURL = "https://discord.gg/yourserver", 
+    -- ================================================================
+    -- 🚀 PLATOBOOST CONFIGURATION (https://dash.platoboost.app)
+    -- ================================================================
+    -- In your Platoboost Dashboard, create a project / service,
+    -- and copy the Service ID (Number or ID) and paste it here:
+    PlatoboostServiceID = "31234", -- e.g. "12345"
+
     KeySaveFile = "ColdWar_SavedKey.txt",
     HWIDSaveFile = "ColdWar_BoundHWID.txt",
     
-    -- Valid license keys list
-    ValidKeys = {
-        ["COLDWAR-OWNER-AONMO-2026-VIP"] = {
-            Role = "VIP Owner",
-            LockedHWID = nil, -- Locks to first machine used, or insert specific HWID here
-        },
-        ["COLDWAR-MASTER-7789-KEY"] = {
-            Role = "Master",
-            LockedHWID = nil,
-        },
+    -- VIP Owner Bypass Keys (You can ALWAYS use these keys without ads/Platoboost!)
+    OwnerKeys = {
+        ["COLDWAR-OWNER-AONMO-2026-VIP"] = true,
+        ["COLDWAR-MASTER-7789-KEY"] = true,
     }
 }
 
--- Verify License Key and Hardware ID Binding
+-- Generate Platoboost Gateway URL tied to player's HWID
+local function GetPlatoboostURL()
+    local id = tostring(KeyConfig.PlatoboostServiceID)
+    if id == "" or id == "YOUR_SERVICE_ID" then
+        return "https://dash.platoboost.app"
+    end
+    return "https://gateway.platoboost.com/a/" .. id .. "?id=" .. tostring(CurrentHWID)
+end
+
+-- Verify Key via Platoboost API
+local function VerifyPlatoboostKey(key)
+    local id = tostring(KeyConfig.PlatoboostServiceID)
+    if id == "" or id == "YOUR_SERVICE_ID" then
+        return false, "✕ Please set your Platoboost Service ID in the script!"
+    end
+
+    local verifyUrl = "https://api.platoboost.com/public/whitelist/" .. id .. "?key=" .. key .. "&hwid=" .. tostring(CurrentHWID)
+    
+    local success, response = pcall(function()
+        if request then
+            local res = request({ Url = verifyUrl, Method = "GET" })
+            return res.Body
+        elseif http_request then
+            local res = http_request({ Url = verifyUrl, Method = "GET" })
+            return res.Body
+        else
+            return game:HttpGet(verifyUrl)
+        end
+    end)
+
+    if not success or not response then
+        pcall(function()
+            local v1Url = "https://api.platoboost.com/v1/authenticators/" .. id .. "/verify?key=" .. key .. "&identifier=" .. tostring(CurrentHWID)
+            response = game:HttpGet(v1Url)
+        end)
+    end
+
+    if response then
+        local decodeOk, data = pcall(function()
+            return HttpService:JSONDecode(response)
+        end)
+
+        if decodeOk and data then
+            if data.valid == true or data.success == true then
+                return true, "✓ Platoboost Key verified successfully!"
+            elseif data.message then
+                return false, "✕ " .. tostring(data.message)
+            end
+        end
+    end
+
+    return false, "✕ Invalid or expired Platoboost key! Please get a new key."
+end
+
+-- Master Key Verification Function
 local function VerifyKey(inputKey)
     if not inputKey or inputKey == "" then 
         return false, "Please enter your license key." 
     end
 
     local trimmed = string.gsub(inputKey, "^%s*(.-)%s*$", "%1")
-    local keyData = KeyConfig.ValidKeys[trimmed]
-    
-    if not keyData then
-        return false, "✕ Invalid Key! Please check and try again."
+
+    -- 1. Check VIP Owner Bypass
+    if KeyConfig.OwnerKeys[trimmed] then
+        return true, "VIP Owner Access Granted!"
     end
-    
-    local boundHWID = keyData.LockedHWID
-    
-    if not boundHWID and isfile and isfile(KeyConfig.HWIDSaveFile) then
-        pcall(function()
-            boundHWID = readfile(KeyConfig.HWIDSaveFile)
-        end)
-    end
-    
-    if boundHWID and boundHWID ~= "" then
-        if boundHWID ~= CurrentHWID then
-            return false, "✕ Key locked to another device (HWID Mismatch)!"
-        end
-    else
-        pcall(function()
-            if writefile then
-                writefile(KeyConfig.HWIDSaveFile, CurrentHWID)
-            end
-        end)
-    end
-    
-    return true, "✓ Key verified successfully!"
+
+    -- 2. Verify with Platoboost
+    return VerifyPlatoboostKey(trimmed)
 end
 
 -- Check locally cached key
@@ -1082,15 +1119,16 @@ else
         end
     end)
 
-    -- Get Key Event
+    -- Get Key Event (Platoboost Gateway)
     GetKeyBtn.MouseButton1Click:Connect(function()
-        local copied = CopyToClipboard(KeyConfig.GetKeyURL)
+        local url = GetPlatoboostURL()
+        local copied = CopyToClipboard(url)
         if copied then
             StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 140)
-            StatusLabel.Text = "✓ Key link copied to clipboard!"
+            StatusLabel.Text = "✓ Platoboost link copied to clipboard!"
         else
             StatusLabel.TextColor3 = Color3.fromRGB(255, 200, 0)
-            StatusLabel.Text = "Link: " .. KeyConfig.GetKeyURL
+            StatusLabel.Text = "Link: " .. url
         end
     end)
 

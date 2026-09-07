@@ -23,7 +23,7 @@ local Config = {
     Secret          = "ColdWarESP_v3_AONMO_2026", -- This makes the script ONLY run from the key script. Even if they copy the original obfuscated script to bypass the key, they won't be able to!
     
     -- [3] Scripts & Links
-    MainScriptURL   = "Link", -- The raw URL of your main script
+    MainScriptURL   = "https://raw.githubusercontent.com/Momonoke-cd/Script-Cold-war/refs/heads/main/main.lua", -- The raw URL of your main script
     
     -- [4] Social Media Settings (Set to true to show, false to hide)
     ShowDiscord     = false,
@@ -36,15 +36,15 @@ local Config = {
     YoutubeURL      = "https://www.youtube.com/channel/UCAlXXV1Hbvf7WbfXARuVtiQ",
 
     -- [5] File System
-    KeyFileName     = "Mykey.txt", -- The name of the file where the valid key will be saved for auto-login
+    KeyFileName     = "ColdWarESP_Key.txt", -- The name of the file where the valid key will be saved for auto-login
 
     -- [6] GUI Management
-    OldGuiName      = "", -- Name of the old GUI to destroy if it's already open
-    MainGuiName     = "", -- Name of the main script's GUI to check if it's already executing
+    OldGuiName      = "ColdWarESP_KeySystem", -- Name of the old GUI to destroy if it's already open
+    MainGuiName     = "ColdWarScript", -- Name of the main script's GUI to check if it's already executing
 
     -- [7] Hub Information & UI Text
-    HubName         = "Test", -- The main title shown at the top of the GUI
-    HubDescription  = "Test" -- The text shown below the title
+    HubName         = "LONELY HUB", -- The main title shown at the top of the GUI
+    HubDescription  = "Enter your key to unlock the script." -- The text shown below the title
 }
 
 -------------------------------------------------------------------------------
